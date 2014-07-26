@@ -1,0 +1,96 @@
+---
+title: "har_report"
+author: "Amanpreet Kaur"
+date: "Tuesday, July 22, 2014"
+output: html_document
+---
+
+#Practical Machine Learning Assignment
+==========================================================================
+
+##Objective:
+The goal of this project is to predict the manner in which humans did the exercise.This is the "classe" variable in the training set. 
+
+##Data:
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+Training data Contains 159 columns and 19622 rows.
+Testing data contains 158 columns and 20 rows.
+
+##Loading required libraries
+```{r,message=FALSE,results='hide'}
+library(e1071)
+```
+
+##Loading and visualizing training data
+```{r read,results='hide'}
+data<-read.table("pml-training.csv",header=TRUE,sep=",")
+head(data)
+summary(data)
+```
+From here we can observe that there are columns containing NA, metadata, blanks and !div/0 in the data.
+
+##Data Cleaning 
+Firstly remove the columns that contain NA's.
+```{r cleanNA}
+sub_data<-subset(data, select=colMeans(is.na(data)) == 0)
+```
+Now extract only the numeric data filtering blanks, !div/0 and metadata columns.
+```{r cleanmetadata}
+dt<-sub_data[,sapply(sub_data, is.numeric)]
+dt_1 <- dt[, !(colnames(dt) %in% c("X","raw_timestamp_part_1","raw_timestamp_part_2"))]
+dt_1$classe<-sub_data[,c("classe")]
+```
+
+##Data partitioning
+Divide the given test set into training and cross validation set.
+```{r partition}
+index<-1:nrow(dt_1)
+testindex<-sample(index,trunc(length(index)/3))
+testset<-dt_1[testindex,]
+trainset<-dt_1[-testindex,]
+```
+
+##Creating Model
+I have used libsvm for creating the model as it is fast and accurate.
+Firstly i have tuned svm to get appropriate value of cost and gamma parameter.
+And then passed these values in svm function to create good model.
+```{r createmodel}
+model<-svm(classe~.,data=trainset,type="C-classification",gamma=0.1,cost=100)
+summary(model)
+```
+
+##Predicting on cross validation set
+```{r crossvalidate}
+prediction <- predict(model, testset[,-54])
+```
+Checking the accuracy of prediction on cross validation set.
+```{r checkaccuracy}
+tab <- table(pred = prediction, true = testset[,54])
+classAgreement(tab)
+```
+Thus we see that the kappa is 99.28 means model is almost perfectly fitting the cross validation set.
+
+##Following the same procedure for loading and cleaning the test data
+```{r}
+dta<-read.table("pml-testing.csv",header=TRUE,sep=",")
+sub_dta<-subset(dta, select=colMeans(is.na(dta)) == 0)
+dat<-sub_dta[,sapply(sub_dta, is.numeric)]
+dats <- dat[, !(colnames(dat) %in% c("X","raw_timestamp_part_1","raw_timestamp_part_2"))]
+```
+Now we have cleaned test data set.
+
+##Predicting on test set.
+```{r predicttest}
+predict_test<- predict(model, dats)
+predict_test
+```
+
+#Conclusion:
+Svm performed very well on this data and was very fast too.
+I initially tried modelling using the default values of cost and gamma.
+It took some time to tune cost and gamma. But this increased the accuracy from 95.7% to 99.28%. 
+
+The r code segment used to tune svm is as following:
+tuned <- tune.svm(classe~., data = trainset, gamma = 10^(-6:-1), cost = 10^(1:2))
+
+I also tried random forest but it took a long time and acccuracy was also same as my intial run.
